@@ -1,0 +1,7 @@
+*.dzi
+/output/
+/src/logs
+/src/env
+/src/*.pid
+/src/huge_test_image.png
+/deploy/

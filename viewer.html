@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpenSeadragon Viewer</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Source Sans Pro', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f0f0f0;
+            overflow: hidden;
+        }
+        
+        /* Skip link for 508 compliance */
+        .skip-link {
+            position: absolute;
+            top: -40px;
+            left: 0;
+            background: #005ea2;
+            color: white;
+            padding: 8px;
+            text-decoration: none;
+            z-index: 100;
+        }
+        
+        .skip-link:focus {
+            top: 0;
+        }
+        
+        .header {
+            background-color: #162e51;
+            color: white;
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 4px solid #005ea2;
+        }
+        
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+        }
+        
+        .back-button {
+            background-color: #005ea2;
+            color: white;
+            padding: 0.625rem 1rem;
+            border-radius: 0.25rem;
+            text-decoration: none;
+            font-size: 0.875rem;
+            font-weight: 600;
+            transition: background-color 0.2s;
+        }
+        
+        .back-button:hover {
+            background-color: #0050d8;
+            text-decoration: underline;
+        }
+        
+        .back-button:focus {
+            outline: 2px solid #2491ff;
+            outline-offset: 2px;
+        }
+        
+        .header h1 {
+            margin: 0;
+            font-size: 1.5rem;
+            font-weight: 700;
+        }
+        
+        .image-info {
+            font-size: 0.875rem;
+            color: #dfe1e2;
+            margin-top: 0.25rem;
+        }
+        
+        .controls {
+            background-color: #ffffff;
+            border-bottom: 1px solid #dfe1e2;
+            padding: 0.75rem 1rem;
+            display: flex;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        
+        .controls button {
+            padding: 0.625rem 1rem;
+            background-color: #ffffff;
+            color: #1c1c1c;
+            border: 2px solid #71767a;
+            border-radius: 0.25rem;
+            cursor: pointer;
+            font-size: 0.875rem;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+        
+        .controls button:hover {
+            background-color: #f0f0f0;
+            border-color: #1c1c1c;
+        }
+        
+        .controls button:active {
+            background-color: #dfe1e2;
+        }
+        
+        .controls button:focus {
+            outline: 2px solid #2491ff;
+            outline-offset: 2px;
+        }
+        
+        #openseadragon-viewer {
+            width: 100%;
+            height: calc(100vh - 140px);
+            background-color: #2d2d2d;
+        }
+        
+        .info {
+            background-color: #f0f0f0;
+            padding: 0.75rem 1rem;
+            text-align: center;
+            font-size: 0.875rem;
+            color: #565c65;
+            border-top: 1px solid #dfe1e2;
+        }
+        
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(22, 46, 81, 0.95);
+            color: white;
+            padding: 1.5rem 2.5rem;
+            border-radius: 0.25rem;
+            border-left: 4px solid #005ea2;
+            font-size: 1rem;
+            z-index: 1000;
+        }
+    </style>
+</head>
+<body>
+    <!-- Skip Navigation Link for 508 Compliance -->
+    <a href="#viewer-main" class="skip-link">Skip to viewer</a>
+    
+    <header class="header" role="banner">
+        <nav class="header-left" aria-label="Breadcrumb navigation">
+            <a href="index.html" class="back-button" aria-label="Back to Gallery">← Back to Gallery</a>
+            <div>
+                <h1 id="image-title">Image Viewer</h1>
+                <div class="image-info" id="image-info" aria-live="polite" aria-atomic="true">Loading image...</div>
+            </div>
+        </nav>
+    </header>
+    
+    <div class="controls" role="toolbar" aria-label="Image viewing controls" aria-controls="openseadragon-viewer">
+        <button onclick="resetView()" aria-label="Reset view to default">Reset View</button>
+        <button onclick="viewer.viewport.zoomBy(2)" aria-label="Zoom in">Zoom In</button>
+        <button onclick="viewer.viewport.zoomBy(0.5)" aria-label="Zoom out">Zoom Out</button>
+        <button onclick="toggleFullscreen()" aria-label="Toggle fullscreen mode">Fullscreen</button>
+        <button onclick="rotateImage()" aria-label="Rotate image 90 degrees clockwise">Rotate</button>
+        <button onclick="flipImage()" aria-label="Flip image horizontally">Flip</button>
+    </div>
+    
+    <div id="loading" class="loading" role="status" aria-live="polite">Loading image...</div>
+    <main id="viewer-main" role="main">
+        <div id="openseadragon-viewer" aria-label="Zoomable image viewer"></div>
+    </main>
+    
+    <footer class="info" role="contentinfo">
+        Use mouse wheel or buttons to zoom • Drag to pan • Touch gestures supported on mobile devices<br>
+        Keyboard shortcuts: 0/Home (reset) • +/- (zoom) • F (fullscreen) • R (rotate) • Arrow keys (pan)
+    </footer>
+
+    <!-- OpenSeadragon Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/openseadragon/4.1.0/openseadragon.min.js"></script>
+    
+    <script>
+        // Get image path from URL parameter
+        const urlParams = new URLSearchParams(window.location.search);
+        const imagePath = urlParams.get('image');
+        
+        if (!imagePath) {
+            document.getElementById('loading').textContent = 'No image specified';
+            setTimeout(() => window.location.href = 'index.html', 2000);
+        }
+        
+        // Extract filename from path
+        const filename = imagePath.split('/').pop().replace('.dzi', '');
+        document.getElementById('image-title').textContent = filename;
+        
+        // Initialize OpenSeadragon viewer
+        var viewer = OpenSeadragon({
+            id: "openseadragon-viewer",
+            prefixUrl: "https://cdnjs.cloudflare.com/ajax/libs/openseadragon/4.1.0/images/",
+            
+            // Use the image from URL parameter
+            tileSources: imagePath,
+            
+            // Configuration options
+            animationTime: 0.5,
+            blendTime: 0.1,
+            constrainDuringPan: false,
+            maxZoomPixelRatio: 2,
+            minZoomLevel: 0.8,
+            visibilityRatio: 1,
+            zoomPerScroll: 2,
+            
+            // Navigation controls - disabled since we have custom controls
+            showNavigationControl: false,
+            showRotationControl: false,
+            showHomeControl: false,
+            showFullPageControl: false,
+            showZoomControl: false,
+            
+            gestureSettingsMouse: {
+                scrollToZoom: true,
+                clickToZoom: false,
+                dblClickToZoom: true
+            }
+        });
+        
+        // Add event listeners
+        viewer.addHandler('open', function() {
+            console.log('Image opened successfully');
+            document.getElementById('loading').style.display = 'none';
+            
+            // Get image dimensions
+            const tiledImage = viewer.world.getItemAt(0);
+            if (tiledImage) {
+                const width = tiledImage.source.dimensions.x;
+                const height = tiledImage.source.dimensions.y;
+                const megapixels = (width * height / 1_000_000).toFixed(1);
+                document.getElementById('image-info').textContent = 
+                    `${width.toLocaleString()} × ${height.toLocaleString()} pixels (${megapixels} MP)`;
+            }
+        });
+        
+        viewer.addHandler('open-failed', function() {
+            document.getElementById('loading').textContent = 'Failed to load image';
+            document.getElementById('loading').style.backgroundColor = '#e74c3c';
+        });
+        
+        viewer.addHandler('zoom', function(event) {
+            console.log('Zoom level:', event.zoom);
+        });
+        
+        // Custom control functions
+        var rotation = 0;
+        var flipped = false;
+        
+        function resetView() {
+            viewer.viewport.goHome();
+            rotation = 0;
+            flipped = false;
+            viewer.viewport.setRotation(0);
+            viewer.viewport.setFlip(false);
+        }
+        
+        function rotateImage() {
+            rotation += 90;
+            viewer.viewport.setRotation(rotation);
+        }
+        
+        function flipImage() {
+            flipped = !flipped;
+            viewer.viewport.setFlip(flipped);
+        }
+        
+        function toggleFullscreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen();
+            } else {
+                document.exitFullscreen();
+            }
+        }
+        
+        // Keyboard shortcuts for accessibility
+        document.addEventListener('keydown', function(event) {
+            // Skip if user is typing in a form field
+            if (event.target.tagName === 'INPUT' || event.target.tagName === 'TEXTAREA') {
+                return;
+            }
+            
+            switch(event.key) {
+                case '0':
+                case 'Home':
+                    resetView();
+                    event.preventDefault();
+                    break;
+                case '+':
+                case '=':
+                    viewer.viewport.zoomBy(2);
+                    event.preventDefault();
+                    break;
+                case '-':
+                case '_':
+                    viewer.viewport.zoomBy(0.5);
+                    event.preventDefault();
+                    break;
+                case 'f':
+                case 'F':
+                    toggleFullscreen();
+                    event.preventDefault();
+                    break;
+                case 'r':
+                case 'R':
+                    rotateImage();
+                    event.preventDefault();
+                    break;
+                case 'ArrowLeft':
+                    viewer.viewport.panBy(new OpenSeadragon.Point(-0.1, 0));
+                    event.preventDefault();
+                    break;
+                case 'ArrowRight':
+                    viewer.viewport.panBy(new OpenSeadragon.Point(0.1, 0));
+                    event.preventDefault();
+                    break;
+                case 'ArrowUp':
+                    viewer.viewport.panBy(new OpenSeadragon.Point(0, -0.1));
+                    event.preventDefault();
+                    break;
+                case 'ArrowDown':
+                    viewer.viewport.panBy(new OpenSeadragon.Point(0, 0.1));
+                    event.preventDefault();
+                    break;
+            }
+        });
+        
+        // Log viewer ready
+        console.log('OpenSeadragon viewer initialized');
+        console.log('Loading:', imagePath);
+        console.log('Keyboard shortcuts: 0/Home=Reset, +/-=Zoom, F=Fullscreen, R=Rotate, Arrow keys=Pan');
+    </script>
+</body>
+</html>

@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multi-Frame Deep Zoom Viewer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Source Sans Pro', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background: #1c1c1c;
+            color: white;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        /* Skip link for 508 compliance */
+        .skip-link {
+            position: absolute;
+            top: -40px;
+            left: 0;
+            background: #005ea2;
+            color: white;
+            padding: 8px;
+            text-decoration: none;
+            z-index: 100;
+        }
+        
+        .skip-link:focus {
+            top: 0;
+        }
+        
+        .header {
+            background: #162e51;
+            padding: 1rem 2rem;
+            border-bottom: 4px solid #005ea2;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+        
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+        }
+        
+        .back-button {
+            background-color: #005ea2;
+            color: white;
+            padding: 0.625rem 1rem;
+            border-radius: 0.25rem;
+            text-decoration: none;
+            font-size: 0.875rem;
+            font-weight: 600;
+            transition: background-color 0.2s;
+        }
+        
+        .back-button:hover {
+            background-color: #0050d8;
+            text-decoration: underline;
+        }
+        
+        .back-button:focus {
+            outline: 2px solid #2491ff;
+            outline-offset: 2px;
+        }
+        
+        .header h1 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: white;
+        }
+        
+        .header-info {
+            color: #dfe1e2;
+            font-size: 0.875rem;
+        }
+        
+        .viewer-container {
+            flex: 1;
+            position: relative;
+            background: #000;
+        }
+        
+        #openseadragon {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+        
+        .controls {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(22, 46, 81, 0.95);
+            border: 2px solid #005ea2;
+            border-radius: 8px;
+            padding: 1rem 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            min-width: 600px;
+            z-index: 10;
+        }
+        
+        .controls-row {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            justify-content: center;
+        }
+        
+        .btn {
+            background: #005ea2;
+            color: white;
+            border: none;
+            padding: 0.75rem 1.25rem;
+            border-radius: 4px;
+            font-size: 0.875rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        
+        .btn:hover {
+            background: #0050d8;
+        }
+        
+        .btn:focus {
+            outline: 2px solid #2491ff;
+            outline-offset: 2px;
+        }
+        
+        .btn:disabled {
+            background: #71767a;
+            cursor: not-allowed;
+        }
+        
+        .btn-icon {
+            padding: 0.75rem;
+            font-size: 1rem;
+        }
+        
+        .frame-slider {
+            flex: 1;
+            height: 8px;
+            background: #71767a;
+            border-radius: 4px;
+            outline: none;
+            -webkit-appearance: none;
+        }
+        
+        .frame-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            background: #005ea2;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+        
+        .frame-slider::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            background: #005ea2;
+            border-radius: 50%;
+            cursor: pointer;
+            border: none;
+        }
+        
+        .frame-slider:focus::-webkit-slider-thumb {
+            outline: 2px solid #2491ff;
+            outline-offset: 2px;
+        }
+        
+        .frame-info {
+            font-size: 1rem;
+            font-weight: 700;
+            min-width: 120px;
+            text-align: center;
+            color: #dfe1e2;
+        }
+        
+        .speed-control {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .speed-control label {
+            font-size: 0.875rem;
+            color: #dfe1e2;
+        }
+        
+        .speed-control select {
+            background: #162e51;
+            color: white;
+            border: 1px solid #005ea2;
+            padding: 0.5rem;
+            border-radius: 4px;
+            font-size: 0.875rem;
+        }
+        
+        .speed-control select:focus {
+            outline: 2px solid #2491ff;
+            outline-offset: 2px;
+        }
+        
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            z-index: 5;
+        }
+        
+        .loading-spinner {
+            border: 4px solid #71767a;
+            border-top: 4px solid #005ea2;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1rem;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .error {
+            color: #ff6b6b;
+            background: rgba(255, 107, 107, 0.1);
+            padding: 1rem;
+            border: 1px solid #ff6b6b;
+            border-radius: 4px;
+            margin: 2rem;
+        }
+        
+        /* Live region for screen readers */
+        .sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border-width: 0;
+        }
+        
+        @media (max-width: 768px) {
+            .controls {
+                min-width: 90%;
+                left: 5%;
+                transform: none;
+            }
+            
+            .controls-row {
+                flex-wrap: wrap;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Skip Navigation Link -->
+    <a href="#viewer" class="skip-link">Skip to viewer</a>
+    
+    <header class="header" role="banner">
+        <nav class="header-left" aria-label="Breadcrumb navigation">
+            <a href="index.html" class="back-button" aria-label="Back to Gallery">← Back to Gallery</a>
+            <div>
+                <h1 id="viewer-title">Multi-Frame Deep Zoom Viewer</h1>
+                <div class="header-info">
+                    <span id="series-info">Loading series...</span>
+                </div>
+            </div>
+        </nav>
+    </header>
+    
+    <main id="viewer" class="viewer-container" role="main" aria-label="Deep zoom image viewer with frame navigation">
+        <div id="openseadragon" role="img" aria-label="Deep zoom medical image, use controls to navigate frames"></div>
+        
+        <div id="loading" class="loading" aria-live="polite">
+            <div class="loading-spinner"></div>
+            <div>Loading frames...</div>
+        </div>
+        
+        <div id="error" class="error" style="display: none;" role="alert"></div>
+        
+        <div class="controls" role="toolbar" aria-label="Frame navigation controls">
+            <!-- Frame counter and slider -->
+            <div class="controls-row">
+                <button id="btn-first" class="btn btn-icon" title="First frame (Home)" aria-label="Go to first frame">⏮</button>
+                <button id="btn-prev" class="btn btn-icon" title="Previous frame (Left arrow)" aria-label="Previous frame">◀</button>
+                <input 
+                    type="range" 
+                    id="frame-slider" 
+                    class="frame-slider" 
+                    min="0" 
+                    max="0" 
+                    value="0"
+                    aria-label="Frame number slider"
+                    aria-valuemin="0"
+                    aria-valuemax="0"
+                    aria-valuenow="0"
+                />
+                <button id="btn-next" class="btn btn-icon" title="Next frame (Right arrow)" aria-label="Next frame">▶</button>
+                <button id="btn-last" class="btn btn-icon" title="Last frame (End)" aria-label="Go to last frame">⏭</button>
+            </div>
+            
+            <!-- Frame info and playback -->
+            <div class="controls-row">
+                <div class="frame-info" id="frame-info" aria-live="polite">Frame 1 of 1</div>
+                <button id="btn-play" class="btn" aria-label="Play or pause animation">▶ Play</button>
+                <div class="speed-control">
+                    <label for="speed-select">Speed:</label>
+                    <select id="speed-select" aria-label="Playback speed">
+                        <option value="1">Slow (1 FPS)</option>
+                        <option value="2" selected>Medium (2 FPS)</option>
+                        <option value="3">Normal (3 FPS)</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Screen reader live region for announcements -->
+        <div id="sr-announcements" class="sr-only" aria-live="polite" aria-atomic="true"></div>
+    </main>
+    
+    <script src="https://cdn.jsdelivr.net/npm/openseadragon@4.1/build/openseadragon/openseadragon.min.js"></script>
+    <script>
+        // Global state
+        let viewer = null;
+        let currentFrame = 0;
+        let totalFrames = 0;
+        let frames = [];
+        let isPlaying = false;
+        let playInterval = null;
+        let fps = 2;
+        let seriesName = '';
+        let isFrameReady = false;  // Track if current frame is loaded
+        let pendingFrame = null;  // Queue next frame during loading
+        
+        // Get series name from URL parameter
+        const urlParams = new URLSearchParams(window.location.search);
+        seriesName = urlParams.get('series');
+        
+        if (!seriesName) {
+            showError('No series specified. Use ?series=name in URL.');
+        } else {
+            loadSeries(seriesName);
+        }
+        
+        async function loadSeries(name) {
+            try {
+                console.log('Loading series:', name);
+                // Load series metadata
+                const response = await fetch(`dzi/${name}_series.json`);
+                if (!response.ok) throw new Error('Series not found');
+                
+                const metadata = await response.json();
+                console.log('Metadata loaded:', metadata);
+                totalFrames = metadata.converted_frames;
+                
+                // Build frame list
+                frames = [];
+                for (let i = 0; i < totalFrames; i++) {
+                    frames.push(`dzi/${name}_frame_${String(i).padStart(4, '0')}.dzi`);
+                }
+                console.log('Frame list built:', frames.length, 'frames');
+                
+                // Update UI
+                document.getElementById('viewer-title').textContent = `${metadata.base_name} - Multi-Frame Viewer`;
+                document.getElementById('series-info').textContent = 
+                    `${metadata.metadata.modality} | ${totalFrames} frames | ${metadata.metadata.study_description}`;
+                
+                console.log('Initializing viewer...');
+                // Initialize viewer
+                initializeViewer();
+                
+            } catch (error) {
+                console.error('Error loading series:', error);
+                showError(`Failed to load series: ${error.message}`);
+            }
+        }
+        
+        function initializeViewer() {
+            console.log('initializeViewer called');
+            // Hide loading
+            document.getElementById('loading').style.display = 'none';
+            console.log('Loading screen hidden');
+            
+            // Initialize OpenSeadragon
+            viewer = OpenSeadragon({
+                id: "openseadragon",
+                prefixUrl: "https://cdn.jsdelivr.net/npm/openseadragon@4.1/build/openseadragon/images/",
+                tileSources: frames[0],
+                showNavigator: false,
+                showRotationControl: false,
+                showFlipControl: false,
+                showFullPageControl: false,
+                showZoomControl: false,
+                showHomeControl: false,
+                showSequenceControl: false,
+                animationTime: 0.3,
+                blendTime: 0,  // Reduce blend time for faster frame switching
+                constrainDuringPan: false,
+                maxZoomPixelRatio: 2,
+                minZoomLevel: 0.8,
+                visibilityRatio: 0.8,
+                zoomPerScroll: 1.2,
+                timeout: 120000,
+                immediateRender: true,  // Render immediately
+                preload: true  // Enable tile preloading
+            });
+            
+            // Listen for tile loading events
+            viewer.world.addHandler('add-item', function(event) {
+                event.item.addHandler('fully-loaded-change', function() {
+                    if (event.item.getFullyLoaded()) {
+                        isFrameReady = true;
+                        // If there's a pending frame change, execute it now
+                        if (pendingFrame !== null && pendingFrame !== currentFrame) {
+                            const nextFrame = pendingFrame;
+                            pendingFrame = null;
+                            goToFrame(nextFrame);
+                        }
+                    }
+                });
+            });
+            
+            // Handle initial frame load
+            viewer.addHandler('open', function() {
+                isFrameReady = true;
+            });
+            
+            // Set up controls
+            setupControls();
+            
+            // Update frame info
+            updateFrameInfo();
+            
+            // Keyboard shortcuts
+            document.addEventListener('keydown', handleKeyboard);
+        }
+        
+        function setupControls() {
+            const slider = document.getElementById('frame-slider');
+            slider.max = totalFrames - 1;
+            slider.value = 0;
+            slider.setAttribute('aria-valuemax', totalFrames - 1);
+            
+            // Slider change
+            slider.addEventListener('input', (e) => {
+                goToFrame(parseInt(e.target.value));
+            });
+            
+            // Navigation buttons
+            document.getElementById('btn-first').addEventListener('click', () => goToFrame(0));
+            document.getElementById('btn-prev').addEventListener('click', () => goToFrame(currentFrame - 1));
+            document.getElementById('btn-next').addEventListener('click', () => goToFrame(currentFrame + 1));
+            document.getElementById('btn-last').addEventListener('click', () => goToFrame(totalFrames - 1));
+            
+            // Play/pause
+            document.getElementById('btn-play').addEventListener('click', togglePlay);
+            
+            // Speed selector
+            document.getElementById('speed-select').addEventListener('change', (e) => {
+                fps = parseInt(e.target.value);
+                if (isPlaying) {
+                    stopPlay();
+                    startPlay();
+                }
+            });
+        }
+        
+        function goToFrame(frameNum) {
+            // Clamp to valid range
+            frameNum = Math.max(0, Math.min(totalFrames - 1, frameNum));
+            
+            if (frameNum === currentFrame) return;
+            
+            // If currently loading a frame, queue this request
+            if (!isFrameReady) {
+                pendingFrame = frameNum;
+                return;
+            }
+            
+            // Mark as loading (will be set back to true by event handler)
+            isFrameReady = false;
+            currentFrame = frameNum;
+            
+            // Update viewer
+            viewer.open(frames[currentFrame]);
+            
+            // Update UI immediately for responsiveness
+            updateFrameInfo();
+            
+            // Announce to screen readers
+            announce(`Frame ${currentFrame + 1} of ${totalFrames}`);
+        }
+        
+        function updateFrameInfo() {
+            const info = `Frame ${currentFrame + 1} of ${totalFrames}`;
+            document.getElementById('frame-info').textContent = info;
+            
+            const slider = document.getElementById('frame-slider');
+            slider.value = currentFrame;
+            slider.setAttribute('aria-valuenow', currentFrame);
+            
+            // Update button states
+            document.getElementById('btn-first').disabled = currentFrame === 0;
+            document.getElementById('btn-prev').disabled = currentFrame === 0;
+            document.getElementById('btn-next').disabled = currentFrame === totalFrames - 1;
+            document.getElementById('btn-last').disabled = currentFrame === totalFrames - 1;
+        }
+        
+        function togglePlay() {
+            if (isPlaying) {
+                stopPlay();
+            } else {
+                startPlay();
+            }
+        }
+        
+        function startPlay() {
+            isPlaying = true;
+            document.getElementById('btn-play').innerHTML = '⏸ Pause';
+            document.getElementById('btn-play').setAttribute('aria-label', 'Pause animation');
+            
+            // For smooth video-like playback, use a shorter interval but only advance when frame is ready
+            const interval = 1000 / fps;
+            
+            playInterval = setInterval(() => {
+                // Only advance if current frame is ready
+                if (isFrameReady) {
+                    let nextFrame = currentFrame + 1;
+                    if (nextFrame >= totalFrames) {
+                        nextFrame = 0; // Loop
+                    }
+                    goToFrame(nextFrame);
+                }
+                // If not ready, skip this interval and wait for next one
+            }, interval);
+            
+            announce('Playback started');
+        }
+        
+        function stopPlay() {
+            isPlaying = false;
+            document.getElementById('btn-play').innerHTML = '▶ Play';
+            document.getElementById('btn-play').setAttribute('aria-label', 'Play animation');
+            
+            if (playInterval) {
+                clearInterval(playInterval);
+                playInterval = null;
+            }
+            
+            announce('Playback stopped');
+        }
+        
+        function handleKeyboard(e) {
+            switch(e.key) {
+                case 'ArrowLeft':
+                    e.preventDefault();
+                    goToFrame(currentFrame - 1);
+                    break;
+                case 'ArrowRight':
+                    e.preventDefault();
+                    goToFrame(currentFrame + 1);
+                    break;
+                case 'Home':
+                    e.preventDefault();
+                    goToFrame(0);
+                    break;
+                case 'End':
+                    e.preventDefault();
+                    goToFrame(totalFrames - 1);
+                    break;
+                case ' ':
+                    e.preventDefault();
+                    togglePlay();
+                    break;
+                case 'Escape':
+                    if (isPlaying) {
+                        stopPlay();
+                    }
+                    break;
+            }
+        }
+        
+        function announce(message) {
+            const srEl = document.getElementById('sr-announcements');
+            srEl.textContent = message;
+        }
+        
+        function showError(message) {
+            document.getElementById('loading').style.display = 'none';
+            const errorEl = document.getElementById('error');
+            errorEl.textContent = message;
+            errorEl.style.display = 'block';
+        }
+    </script>
+</body>
+</html>
