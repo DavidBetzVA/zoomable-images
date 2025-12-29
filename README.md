@@ -2,6 +2,8 @@
 
 A VA-compliant, Section 508 accessible gallery and viewer for massive high-resolution images using OpenSeadragon's deep zoom technology. Convert any image format (PNG, JPG, BMP, TIFF, WEBP, GIF, DICOM) or generate test images with full accessibility support.
 
+See demo at [http://seadragon-demo-cwbefuwek.s3-website-us-east-1.amazonaws.com](http://seadragon-demo-cwbefuwek.s3-website-us-east-1.amazonaws.com)
+
 ## Simple Usage
 
 ### Convert Your Images
